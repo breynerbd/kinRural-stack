@@ -1,0 +1,123 @@
+services:
+  kinrural-db:
+    image: postgres:15
+    container_name: kinrural-db
+
+    environment:
+      POSTGRES_DB: kinrural_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_bank_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  kinrural-auth-db:
+    image: postgres:15
+    container_name: kinrural-auth-db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: kinrural_auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  kinrural-auth-service:
+    build:
+      context: ../kinRural-auth-service
+      dockerfile: Dockerfile
+
+    container_name: kinrural-auth-service
+
+    ports:
+      - "5070:5070"
+
+    depends_on:
+      kinrural-auth-db:
+        condition: service_healthy
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+
+  kinrural-server-admin:
+    build:
+      context: ../kinRural-server-admin
+      dockerfile: Dockerfile
+
+    container_name: kinrural-server-admin
+
+    ports:
+      - "3005:3005"
+
+    depends_on:
+      kinrural-db:
+        condition: service_healthy
+
+    env_file:
+      - ../kinRural-server-admin/.env
+
+  kinrural-server-user:
+    build:
+      context: ../kinRural-server-user
+      dockerfile: Dockerfile
+
+    container_name: kinrural-server-user
+
+    ports:
+      - "3006:3006"
+
+    depends_on:
+      kinrural-db:
+        condition: service_healthy
+
+    env_file:
+      - ../kinRural-server-user/.env
+
+  kinrural-client-admin:
+    build:
+      context: ../kinRural-client-admin
+      dockerfile: Dockerfile
+
+    container_name: kinrural-client-admin
+
+    ports:
+      - "5173:5173"
+
+    depends_on:
+      - kinrural-auth-service
+      - kinrural-server-admin
+
+  kinrural-client-user:
+    build:
+      context: ../kinRural-client-user
+      dockerfile: Dockerfile
+
+    container_name: kinrural-client-user
+
+    ports:
+      - "8081:8081"
+
+    depends_on:
+      - kinrural-auth-service
+      - kinrural-server-user
+
+volumes:
+  postgres_bank_data:
+  postgres_auth_data:
